@@ -5,11 +5,13 @@ import (
 	"fmt"
 )
 
+var ErrIndexOutOfRange = "index:%d out of range"
+
 type AllowT interface {
 	int | int8 | int16 | int32 | int64 | string
 }
 
-func DelSliceElement[T AllowT](s []T, index int) ([]T, error) {
+func DelSliceElementOld[T AllowT](s []T, index int) ([]T, error) {
 	if index < 0 || index > len(s)-1 {
 		return s, errors.New(fmt.Sprintf("index:%d out of memory", index))
 	}
@@ -19,18 +21,38 @@ func DelSliceElement[T AllowT](s []T, index int) ([]T, error) {
 	return ret, nil
 }
 
-func main() {
-	r1, err1 := DelSliceElement([]int{1, 2, 3}, 1)
-	r2, err2 := DelSliceElement([]int{1, 2, 3}, -1)
-	r3, err3 := DelSliceElement([]int{1, 2, 3}, 3)
-	r4, err4 := DelSliceElement([]string{"a", "b", "c"}, 0)
-	r5, err5 := DelSliceElement([]string{"a", "b", "c"}, -1)
-	r6, err6 := DelSliceElement([]string{"a", "b", "c"}, 2)
+func DelSliceElement[T AllowT](src []T, index int) ([]T, error) {
+	length := len(src)
+	if index < 0 || index >= length {
+		return src, errors.New(fmt.Sprintf(ErrIndexOutOfRange, index))
+	}
+	for i := index; i+1 < length; i++ {
+		src[i] = src[i+1]
+	}
+	return Shrink(src)[:length-1], nil
+}
 
-	println("err1", err1, fmt.Sprintf("===%v,%v", r1, err1))
-	println("err2", err2, fmt.Sprintf("===%v,%v", r2, err2))
-	println("err3", err3, fmt.Sprintf("===%v,%v", r3, err3))
-	println(" err4", err4, fmt.Sprintf("===%v,%v", r4, err4))
-	println("err5", err5, fmt.Sprintf("===%v,%v", r5, err5))
-	println("err6", err6, fmt.Sprintf("===%v,%v", r6, err6))
+func Shrink[T any](src []T) []T {
+	c, l := cap(src), len(src)
+	n, changed := calCapacity(c, l)
+	if !changed {
+		return src
+	}
+	s := make([]T, 0, n)
+	s = append(s, src...)
+	return s
+}
+
+func calCapacity(c, l int) (int, bool) {
+	if c <= 64 {
+		return c, false
+	}
+	if c > 2048 && (c/l >= 2) {
+		factor := 0.625
+		return int(float32(c) * float32(factor)), true
+	}
+	if c <= 2048 && (c/l >= 4) {
+		return c / 2, true
+	}
+	return c, false
 }
